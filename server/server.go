@@ -24,9 +24,11 @@ func init() {
 	viper.SetDefault("min_passwd_classes", 2)
 	viper.SetDefault("develop", false)
 	viper.SetDefault("require_verify_email", false)
+	viper.SetDefault("require_verify_admin", false)
 	viper.SetDefault("enable_api_keys", false)
 	viper.SetDefault("setup_max_age", 86400)
 	viper.SetDefault("reset_max_age", 3600)
+	viper.SetDefault("replace_token", false)
 	viper.SetDefault("max_attempts", 10)
 	viper.SetDefault("bind", "")
 	viper.SetDefault("driver", "mysql")
@@ -35,6 +37,7 @@ func init() {
 	viper.SetDefault("redis", ":6379")
 	viper.SetDefault("max_requests", 15)
 	viper.SetDefault("rate_limit_expire", 3600)
+	viper.SetDefault("hydra_consent_skip", false)
 	viper.SetDefault("hydra_login_timeout", 86400)
 	viper.SetDefault("hydra_consent_timeout", 86400)
 }
@@ -82,8 +85,15 @@ func Run() error {
 	e.HTTPErrorHandler = HTTPErrorHandler
 	e.HideBanner = true
 	e.Use(middleware.Recover())
+	e.Use(CacheControl)
 	e.Use(middleware.CSRFWithConfig(middleware.CSRFConfig{
-		TokenLookup: "form:csrf",
+		TokenLookup:    "form:csrf",
+		CookieSecure:   !viper.GetBool("develop"),
+		CookieHTTPOnly: true,
+	}))
+	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
+		XFrameOptions:         "DENY",
+		ContentSecurityPolicy: "default-src 'self'; img-src 'self' data:;script-src 'self' 'unsafe-inline';",
 	}))
 
 	encKey, err := hex.DecodeString(viper.GetString("enc_key"))
@@ -94,6 +104,7 @@ func Run() error {
 	// Sessions
 	cookieStore := sessions.NewCookieStore([]byte(viper.GetString("auth_key")), encKey)
 	cookieStore.Options.Secure = !viper.GetBool("develop")
+	cookieStore.Options.HttpOnly = true
 	cookieStore.MaxAge(0)
 	e.Use(session.Middleware(cookieStore))
 

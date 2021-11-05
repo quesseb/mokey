@@ -1,19 +1,19 @@
 package server
 
 import (
-        "context"
-        "net/http"
-        "net/url"
+	"context"
+	"net/http"
+	"net/url"
 
-        oidc "github.com/coreos/go-oidc"
-        "github.com/labstack/echo/v4"
-        hydra "github.com/ory/hydra/sdk/go/hydra/client"
-        log "github.com/sirupsen/logrus"
-        "github.com/spf13/viper"
-        "github.com/ubccr/goipa"
-        "github.com/ubccr/mokey/model"
-        "github.com/ubccr/mokey/util"
-        "golang.org/x/oauth2"
+	oidc "github.com/coreos/go-oidc"
+	"github.com/labstack/echo/v4"
+	hydra "github.com/ory/hydra-client-go/client"
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+	"github.com/ubccr/goipa"
+	"github.com/ubccr/mokey/model"
+	"github.com/ubccr/mokey/util"
+	"golang.org/x/oauth2"
 )
 
 type Handler struct {
@@ -117,57 +117,61 @@ func NewHandler(db model.Datastore) (*Handler, error) {
 }
 
 func (h *Handler) SetupRoutes(e *echo.Echo) {
-        // Public
-        e.GET(Path("/auth/captcha/*.png"), h.Captcha).Name = "captcha"
+	// Public
+	e.GET(Path("/auth/captcha/*.png"), h.Captcha).Name = "captcha"
 
-        // Login
-        e.GET(Path("/auth/login"), h.LoginGet).Name = "login"
-        e.POST(Path("/auth/login"), RateLimit(h.LoginPost))
+	// Login
+	e.GET(Path("/auth/login"), h.LoginGet).Name = "login"
+	e.POST(Path("/auth/login"), RateLimit(h.LoginPost))
 
-        // Logout
-        e.GET(Path("/auth/logout"), h.Logout).Name = "logout"
+	// Change expired password
+	e.GET(Path("/auth/change"), h.ChangeGet).Name = "change"
+	e.POST(Path("/auth/change"), RateLimit(h.ChangePost))
 
-        if viper.GetBool("enable_user_signup") {
-                // Signup
-                e.GET(Path("/auth/signup"), h.Signup).Name = "signup"
-                e.POST(Path("/auth/signup"), RateLimit(h.CreateAccount))
-                e.Match([]string{"GET", "POST"}, Path("/auth/verify/*"), h.SetupAccount)[0].Name = "verify"
-        }
+	// Logout
+	e.GET(Path("/auth/logout"), h.Logout).Name = "logout"
 
-        // Forgot Password
-        e.Match([]string{"GET", "POST"}, Path("/auth/forgotpw"), RateLimit(h.ForgotPassword))[0].Name = "forgotpw"
-        e.Match([]string{"GET", "POST"}, Path("/auth/resetpw/*"), RateLimit(h.ResetPassword))[0].Name = "resetpw"
-        
+	if viper.GetBool("enable_user_signup") {
+		// Signup
+		e.GET(Path("/auth/signup"), h.Signup).Name = "signup"
+		e.POST(Path("/auth/signup"), RateLimit(h.CreateAccount))
+		e.Match([]string{"GET", "POST"}, Path("/auth/verify/*"), h.SetupAccount)[0].Name = "verify"
+	}
+
         // change address
         e.Match([]string{"GET", "POST"}, Path("/auth/newverify/*"), h.SetupMail)[0].Name = "verify"
-        
-        // Login Required
-        e.GET(Path("/"), LoginRequired(h.Index)).Name = "index"
-        e.Match([]string{"GET", "POST"}, Path("/changepw"), LoginRequired(h.ChangePassword))[0].Name = "changepw"
         e.Match([]string{"GET", "POST"}, Path("/changemail"), LoginRequired(h.ChangeMail))[0].Name = "changemail"
-        e.GET(Path("/sshpubkey/new"), LoginRequired(h.NewSSHPubKey)).Name = "sshpubkey-new"
-        e.POST(Path("/sshpubkey/new"), LoginRequired(h.AddSSHPubKey))
-        e.Match([]string{"GET", "POST"}, Path("/sshpubkey"), LoginRequired(h.SSHPubKey))[0].Name = "sshpubkey"
-        e.GET(Path("/otptokens"), LoginRequired(h.OTPTokens)).Name = "otptokens"
-        e.POST(Path("/otptokens"), LoginRequired(h.ModifyOTPTokens))
-        e.Match([]string{"GET", "POST"}, Path("/2fa"), LoginRequired(h.TwoFactorAuth))[0].Name = "2fa"
 
-        if viper.IsSet("hydra_admin_url") {
-                e.GET(Path("/oauth/consent"), h.ConsentGet).Name = "consent"
-                e.POST(Path("/oauth/consent"), RateLimit(h.ConsentPost))
-                e.GET(Path("/oauth/login"), h.LoginOAuthGet).Name = "login-oauth"
-                e.POST(Path("/oauth/login"), RateLimit(h.LoginOAuthPost))
-                e.GET(Path("/oauth/error"), h.HydraError).Name = "hydra-error"
+	// Forgot Password
+	e.Match([]string{"GET", "POST"}, Path("/auth/forgotpw"), RateLimit(h.ForgotPassword))[0].Name = "forgotpw"
+	e.Match([]string{"GET", "POST"}, Path("/auth/resetpw/*"), RateLimit(h.ResetPassword))[0].Name = "resetpw"
 
-                if viper.GetBool("enable_api_keys") {
-                        e.Match([]string{"GET", "POST"}, Path("/apikey"), LoginRequired(h.ApiKey))[0].Name = "apikey"
-                }
-        }
+	// Login Required
+	e.GET(Path("/"), LoginRequired(h.Index)).Name = "index"
+	e.Match([]string{"GET", "POST"}, Path("/changepw"), LoginRequired(h.ChangePassword))[0].Name = "changepw"
+	e.GET(Path("/sshpubkey/new"), LoginRequired(h.NewSSHPubKey)).Name = "sshpubkey-new"
+	e.POST(Path("/sshpubkey/new"), LoginRequired(h.AddSSHPubKey))
+	e.Match([]string{"GET", "POST"}, Path("/sshpubkey"), LoginRequired(h.SSHPubKey))[0].Name = "sshpubkey"
+	e.GET(Path("/otptokens"), LoginRequired(h.OTPTokens)).Name = "otptokens"
+	e.POST(Path("/otptokens"), LoginRequired(h.ModifyOTPTokens))
+	e.Match([]string{"GET", "POST"}, Path("/2fa"), LoginRequired(h.TwoFactorAuth))[0].Name = "2fa"
 
-        if viper.GetBool("enable_user_signup") && viper.GetBool("globus_signup") {
-                e.GET(Path("/auth/globus/redirect"), h.GlobusRedirect)
-                e.GET(Path("/auth/globus"), h.GlobusSignup).Name = "globus"
-        }
+	if viper.IsSet("hydra_admin_url") {
+		e.GET(Path("/oauth/consent"), h.ConsentGet).Name = "consent"
+		e.POST(Path("/oauth/consent"), RateLimit(h.ConsentPost))
+		e.GET(Path("/oauth/login"), h.LoginOAuthGet).Name = "login-oauth"
+		e.POST(Path("/oauth/login"), RateLimit(h.LoginOAuthPost))
+		e.GET(Path("/oauth/error"), h.HydraError).Name = "hydra-error"
+
+		if viper.GetBool("enable_api_keys") {
+			e.Match([]string{"GET", "POST"}, Path("/apikey"), LoginRequired(h.ApiKey))[0].Name = "apikey"
+		}
+	}
+
+	if viper.GetBool("enable_user_signup") && viper.GetBool("globus_signup") {
+		e.GET(Path("/auth/globus/redirect"), h.GlobusRedirect)
+		e.GET(Path("/auth/globus"), h.GlobusSignup).Name = "globus"
+	}
 }
 
 func (h *Handler) Index(c echo.Context) error {

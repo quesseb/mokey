@@ -153,6 +153,12 @@ reset_max_age: 3600
 max_attempts: 10
 
 #------------------------------------------------------------------------------
+# Allow password tokens to be replaced
+# default: false
+#------------------------------------------------------------------------------
+# replace_token: false
+
+#------------------------------------------------------------------------------
 # Sign emails using PGP/Mime
 #------------------------------------------------------------------------------
 pgp_sign: false
@@ -179,9 +185,18 @@ pgp_sign: false
 # default_shell: "/bin/bash"
 # default_homedir: "/home"
 #
+
+#------------------------------------------------------------------------------
+# Require FreeIPA admin to activate the account. With this option enabled new
+# accounts are disabled by default until a FreeIPA admin activates them.
+# This option is mutually exclusive with require_verify_email.
+#------------------------------------------------------------------------------
+# require_verify_admin: false
+
 #------------------------------------------------------------------------------
 # Require users to verify email address. With this option enabled new accounts
 # are disabled by default until the user verifies their email address
+# This option is mutually exclusive with require_verify_admin.
 #------------------------------------------------------------------------------
 # require_verify_email: false
 
@@ -205,6 +220,7 @@ develop: false
 # Hydra config
 #------------------------------------------------------------------------------
 # hydra_admin_url: "https://localhost:4445"
+# hydra_consent_skip: false
 # hydra_consent_timeout: 86400
 # hydra_login_timeout: 86400
 # hydra_fake_tls_termination: true

@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
-	"github.com/ory/hydra/sdk/go/hydra/client/admin"
-	"github.com/ory/hydra/sdk/go/hydra/models"
+	"github.com/ory/hydra-client-go/client/admin"
+	"github.com/ory/hydra-client-go/models"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/ubccr/mokey/model"
@@ -59,7 +60,7 @@ func (h *Handler) ConsentGet(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to validate consent")
 	}
 
-	if consent.Skip {
+	if viper.GetBool("hydra_consent_skip") || consent.Skip {
 		log.WithFields(log.Fields{
 			"user": consent.Subject,
 		}).Info("Hydra requested we skip consent")
@@ -77,15 +78,17 @@ func (h *Handler) ConsentGet(c echo.Context) error {
 		params := admin.NewAcceptConsentRequestParams()
 		params.SetConsentChallenge(challenge)
 		params.SetHTTPClient(h.hydraAdminHTTPClient)
-		params.SetBody(&models.HandledConsentRequest{
-			GrantedScope: consent.RequestedScope,
-			Session: &models.ConsentRequestSessionData{
+		params.SetBody(&models.AcceptConsentRequest{
+			GrantScope: consent.RequestedScope,
+			Session: &models.ConsentRequestSession{
 				IDToken: map[string]interface{}{
-					"uid":    string(user.Uid),
-					"first":  string(user.First),
-					"last":   string(user.Last),
-					"groups": strings.Join(user.Groups, ";"),
-					"email":  string(user.Email),
+					"uid":         string(user.Uid),
+					"first":       string(user.First),
+					"last":        string(user.Last),
+					"given_name":  string(user.First),
+					"family_name": string(user.Last),
+					"groups":      strings.Join(user.Groups, ";"),
+					"email":       string(user.Email),
 				},
 			}})
 
@@ -101,7 +104,7 @@ func (h *Handler) ConsentGet(c echo.Context) error {
 			"username": consent.Subject,
 		}).Info("Consent challenge signed successfully")
 
-		return c.Redirect(http.StatusFound, response.Payload.RedirectTo)
+		return c.Redirect(http.StatusFound, *response.Payload.RedirectTo)
 	}
 
 	if apiKey != nil && strings.Contains(c.Request().Header.Get("Accept"), "application/json") {
@@ -171,17 +174,19 @@ func (h *Handler) ConsentPost(c echo.Context) error {
 	acceptparams := admin.NewAcceptConsentRequestParams()
 	acceptparams.SetConsentChallenge(challenge)
 	acceptparams.SetHTTPClient(h.hydraAdminHTTPClient)
-	acceptparams.SetBody(&models.HandledConsentRequest{
-		GrantedScope: grantedScopes,
-		Remember:     true, // TODO: make this configurable
-		RememberFor:  viper.GetInt64("hydra_consent_timeout"),
-		Session: &models.ConsentRequestSessionData{
+	acceptparams.SetBody(&models.AcceptConsentRequest{
+		GrantScope:  grantedScopes,
+		Remember:    true, // TODO: make this configurable
+		RememberFor: viper.GetInt64("hydra_consent_timeout"),
+		Session: &models.ConsentRequestSession{
 			IDToken: map[string]interface{}{
-				"uid":    string(user.Uid),
-				"first":  string(user.First),
-				"last":   string(user.Last),
-				"groups": strings.Join(user.Groups, ";"),
-				"email":  string(user.Email),
+				"uid":         string(user.Uid),
+				"first":       string(user.First),
+				"last":        string(user.Last),
+				"given_name":  string(user.First),
+				"family_name": string(user.Last),
+				"groups":      strings.Join(user.Groups, ";"),
+				"email":       string(user.Email),
 			},
 		}})
 
@@ -197,7 +202,7 @@ func (h *Handler) ConsentPost(c echo.Context) error {
 		"username": string(user.Uid),
 	}).Info("Consent challenge signed successfully")
 
-	return c.Redirect(http.StatusFound, completedResponse.Payload.RedirectTo)
+	return c.Redirect(http.StatusFound, *completedResponse.Payload.RedirectTo)
 }
 
 func (h *Handler) LoginOAuthGet(c echo.Context) error {
@@ -228,13 +233,13 @@ func (h *Handler) LoginOAuthGet(c echo.Context) error {
 
 	login := response.Payload
 
-	if login.Skip {
+	if *login.Skip {
 		log.WithFields(log.Fields{
 			"user": login.Subject,
 		}).Info("Hydra requested we skip login")
 
 		// Check to make sure we have a valid user id
-		_, err = h.client.UserShow(login.Subject)
+		_, err = h.client.UserShow(*login.Subject)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"error":    err,
@@ -246,8 +251,8 @@ func (h *Handler) LoginOAuthGet(c echo.Context) error {
 		acceptparams := admin.NewAcceptLoginRequestParams()
 		acceptparams.SetLoginChallenge(challenge)
 		acceptparams.SetHTTPClient(h.hydraAdminHTTPClient)
-		acceptparams.SetBody(&models.HandledLoginRequest{
-			Subject: &login.Subject,
+		acceptparams.SetBody(&models.AcceptLoginRequest{
+			Subject: login.Subject,
 		})
 
 		completedResponse, err := h.hydraClient.Admin.AcceptLoginRequest(acceptparams)
@@ -262,7 +267,7 @@ func (h *Handler) LoginOAuthGet(c echo.Context) error {
 			"username": login.Subject,
 		}).Info("Login challenge signed successfully")
 
-		return c.Redirect(http.StatusFound, completedResponse.Payload.RedirectTo)
+		return c.Redirect(http.StatusFound, *completedResponse.Payload.RedirectTo)
 	}
 
 	if apiKey != nil && strings.Contains(c.Request().Header.Get("Accept"), "application/json") {
@@ -326,14 +331,23 @@ func (h *Handler) LoginOAuthPost(c echo.Context) error {
 
 		uid = apiKey.UserName
 	} else {
-		_, err = h.tryAuth(uid, password)
+		var sid string
+		sid, err = h.tryAuth(uid, password)
+		if err == nil {
+			sess, _ := session.Get(CookieKeySession, c)
+			sess.Values[CookieKeyUser] = uid
+			sess.Values[CookieKeySID] = sid
+			sess.Values[CookieKeyAuthenticated] = true
+			delete(sess.Values, CookieKeyWYAF)
+			sess.Save(c.Request(), c.Response())
+		}
 	}
 
 	if err == nil {
 		acceptparams := admin.NewAcceptLoginRequestParams()
 		acceptparams.SetLoginChallenge(challenge)
 		acceptparams.SetHTTPClient(h.hydraAdminHTTPClient)
-		acceptparams.SetBody(&models.HandledLoginRequest{
+		acceptparams.SetBody(&models.AcceptLoginRequest{
 			Subject:     &uid,
 			Remember:    true, // TODO: make this configurable
 			RememberFor: viper.GetInt64("hydra_login_timeout"),
@@ -351,7 +365,7 @@ func (h *Handler) LoginOAuthPost(c echo.Context) error {
 			"username": uid,
 		}).Info("Login challenge signed successfully")
 
-		return c.Redirect(http.StatusFound, completedResponse.Payload.RedirectTo)
+		return c.Redirect(http.StatusFound, *completedResponse.Payload.RedirectTo)
 	}
 
 	message = err.Error()

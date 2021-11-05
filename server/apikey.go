@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	"github.com/ory/hydra/sdk/go/hydra/client/admin"
+	"github.com/ory/hydra-client-go/client/admin"
 	log "github.com/sirupsen/logrus"
 	"github.com/ubccr/goipa"
 	"github.com/ubccr/mokey/model"
@@ -84,6 +84,7 @@ func (h *Handler) removeApiKey(user, clientID string) error {
 
 	authparams := admin.NewRevokeAuthenticationSessionParams()
 	authparams.SetSubject(user)
+	authparams.SetHTTPClient(h.hydraAdminHTTPClient)
 	_, err = h.hydraClient.Admin.RevokeAuthenticationSession(authparams)
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -95,6 +96,7 @@ func (h *Handler) removeApiKey(user, clientID string) error {
 
 	consparams := admin.NewRevokeConsentSessionsParams()
 	consparams.SetSubject(user)
+	consparams.SetHTTPClient(h.hydraAdminHTTPClient)
 	consparams.SetClient(&clientID)
 	_, err = h.hydraClient.Admin.RevokeConsentSessions(consparams)
 	if err != nil {

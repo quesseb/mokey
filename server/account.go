@@ -222,12 +222,14 @@ func (h *Handler) sendPasswordReset(uid, captchaID, captchaSol string) error {
 		}
 	}
 
-	_, err := h.db.FetchTokenByUser(uid, viper.GetInt("reset_max_age"))
-	if err == nil {
-		log.WithFields(log.Fields{
-			"uid": uid,
-		}).Error("Forgotpw: user already has active token")
-		return nil
+	if !viper.GetBool("replace_token") {
+		_, err := h.db.FetchTokenByUser(uid, viper.GetInt("reset_max_age"))
+		if err == nil {
+			log.WithFields(log.Fields{
+				"uid": uid,
+			}).Error("Forgotpw: user already has active token")
+			return nil
+		}
 	}
 
 	userRec, err := h.client.UserShow(uid)
@@ -237,6 +239,13 @@ func (h *Handler) sendPasswordReset(uid, captchaID, captchaSol string) error {
 			"error": err,
 		}).Error("Forgotpw: invalid uid")
 		return errors.New("Invalid username")
+	}
+
+	if userRec.NSAccountLock {
+		log.WithFields(log.Fields{
+			"uid": uid,
+		}).Error("Forgotpw: user account is disabled")
+		return errors.New("Your account is disabled")
 	}
 
 	if len(userRec.Email) == 0 {
