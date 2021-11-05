@@ -3,8 +3,12 @@ package util
 import (
 	"fmt"
 	"regexp"
+        
+        "github.com/spf13/viper"
 )
-
+func init() {
+	viper.SetDefault("passwd_repeated_count", true)
+}
 var (
 	lower  = regexp.MustCompile(`[a-z]`)
 	upper  = regexp.MustCompile(`[A-Z]`)
@@ -33,26 +37,26 @@ func CheckPassword(pass string, minLength, minClasses int) error {
 	if marks.MatchString(pass) {
 		numCategories++
 	}
+        if viper.GetBool("passwd_repeated_count") {
+            repeated := 0
+            for i := 0; i < l; i++ {
+                    count := 1
+                    for j := i + 1; j < l; j++ {
+                            if pass[i] != pass[j] {
+                                    break
+                            }
+                            count++
+                    }
 
-	repeated := 0
-	for i := 0; i < l; i++ {
-		count := 1
-		for j := i + 1; j < l; j++ {
-			if pass[i] != pass[j] {
-				break
-			}
-			count++
-		}
+                    if count > repeated {
+                            repeated = count
+                    }
+            }
 
-		if count > repeated {
-			repeated = count
-		}
-	}
-
-	if repeated > 1 {
-		numCategories--
-	}
-
+            if repeated > 1 {
+                    numCategories--
+            }
+        }
 	if numCategories < minClasses {
 		return fmt.Errorf("Password does not conform to policy. Min character classes required: %d", minClasses)
 	}

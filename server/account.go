@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"path"
+        "regexp"
 
 	"github.com/dchest/captcha"
 	"github.com/labstack/echo/v4"
@@ -244,6 +245,12 @@ func (h *Handler) sendPasswordReset(uid, captchaID, captchaSol string) error {
 		}).Error("Forgotpw: missing email address")
 		return errors.New("No email address provided for that username")
 	}
+
+        viper.SetDefault("email_block_resetpw", "^$")
+        a, _ := regexp.Compile(viper.GetString("email_block_resetpw"))
+        if a.MatchString(string(userRec.Email)) {
+                return errors.New("Le renvoi de mot de passe pour votre adresse mail n'est pas autorisé, veuillez contacter le support du site. ")
+        }
 
 	err = h.emailer.SendResetPasswordEmail(uid, string(userRec.Email))
 	if err != nil {

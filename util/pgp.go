@@ -72,7 +72,7 @@ func (e *Emailer) SendResetPasswordEmail(uid, email string) error {
 	vars := map[string]interface{}{
 		"link": fmt.Sprintf("%s/auth/resetpw/%s", viper.GetString("email_link_base"), e.db.SignToken(ResetSalt, token.Token))}
 
-	err = e.sendEmail(token.Email, fmt.Sprintf("[%s] Please reset your password", viper.GetString("email_prefix")), "reset-password.txt", vars)
+	err = e.sendEmail(token.Email, fmt.Sprintf("[%s] Changement de mot de passe", viper.GetString("email_prefix")), "reset-password.txt", vars)
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,26 @@ func (e *Emailer) SendVerifyAccountEmail(uid, email string) error {
 		"uid":  uid,
 		"link": fmt.Sprintf("%s/auth/verify/%s", viper.GetString("email_link_base"), e.db.SignToken(VerifySalt, token.Token))}
 
-	err = e.sendEmail(token.Email, fmt.Sprintf("[%s] Verify your email", viper.GetString("email_prefix")), "setup-account.txt", vars)
+	err = e.sendEmail(token.Email, fmt.Sprintf("[%s] Confirmez votre email", viper.GetString("email_prefix")), "setup-account.txt", vars)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// another verify address when user change its mail address
+func (e *Emailer) SendVerifyNewEmail(uid, email string) error {
+	token, err := e.db.CreateToken(uid, email)
+	if err != nil {
+		return err
+	}
+
+	vars := map[string]interface{}{
+		"uid":  uid,
+		"link": fmt.Sprintf("%s/auth/newverify/%s", viper.GetString("email_link_base"), e.db.SignToken(VerifySalt, token.Token))}
+
+	err = e.sendEmail(token.Email, fmt.Sprintf("[%s] Confirmez votre nouvelle adresse mail", viper.GetString("email_prefix")), "change-email.txt", vars)
 	if err != nil {
 		return err
 	}
@@ -166,7 +185,7 @@ func (e *Emailer) sendEmail(email, subject, tmpl string, data map[string]interfa
 	}
 
 	data["date"] = time.Now()
-	data["contact"] = viper.GetString("email_from")
+	data["contact"] = viper.GetString("email_contact")
 	data["sig"] = viper.GetString("email_sig")
 
 	if _, ok := e.templates[tmpl]; !ok {
