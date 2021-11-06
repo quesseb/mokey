@@ -8,7 +8,7 @@ import (
         "path/filepath"
         "strings"
 	"unicode"
-        
+
         valid "github.com/asaskevich/govalidator"
         "github.com/dchest/captcha"
         "github.com/labstack/echo-contrib/session"
@@ -191,15 +191,15 @@ func (h *Handler) createAccount(uid, email, email2, first, last, pass, pass2, ce
                         return errors.New("The numbers you typed in do not match the image")
                 }
         }
-        
+
         homedir := filepath.Join(viper.GetString("default_homedir"), uid)
-        
+
         mailcount, err := h.client.MailFind(email)
         if mailcount > 0 {
                 return errors.New("L'adresse mail a déjà été enregistrée.")
                 log.WithFields(log.Fields{"code": "200"}).Warning("mailcount: ", mailcount)
         }
-        
+
         userRec, err := h.client.UserAdd(uid, email, first, last, homedir, viper.GetString("default_shell"), true)
         if err != nil {
                 if ierr, ok := err.(*ipa.IpaError); ok {
@@ -270,13 +270,13 @@ func (h *Handler) createAccount(uid, email, email2, first, last, pass, pass2, ce
                         }).Error("Failed to send new account email")
 
                         // TODO: should we tell user about this?
+                } else {
+                        log.WithFields(log.Fields{
+                                "uid":   uid,
+                                "email": email,
+                        }).Warn("New user account email sent successfully")
                 }
         }
 
-        log.WithFields(log.Fields{
-                "uid":   uid,
-                "email": email,
-        }).Warn("New user account email sent successfully")
-
         return nil
-} 
+}
