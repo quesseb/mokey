@@ -1,19 +1,19 @@
 package server
 
 import (
-        "context"
-        "net/http"
-        "net/url"
+	"context"
+	"net/http"
+	"net/url"
 
-        oidc "github.com/coreos/go-oidc"
-        "github.com/labstack/echo/v4"
-        hydra "github.com/ory/hydra/sdk/go/hydra/client"
-        log "github.com/sirupsen/logrus"
-        "github.com/spf13/viper"
-        "github.com/ubccr/goipa"
-        "github.com/ubccr/mokey/model"
-        "github.com/ubccr/mokey/util"
-        "golang.org/x/oauth2"
+	oidc "github.com/coreos/go-oidc"
+	"github.com/labstack/echo/v4"
+	hydra "github.com/ory/hydra-client-go/client"
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+	"github.com/ubccr/goipa"
+	"github.com/ubccr/mokey/model"
+	"github.com/ubccr/mokey/util"
+	"golang.org/x/oauth2"
 )
 
 type Handler struct {
@@ -137,10 +137,10 @@ func (h *Handler) SetupRoutes(e *echo.Echo) {
         // Forgot Password
         e.Match([]string{"GET", "POST"}, Path("/auth/forgotpw"), RateLimit(h.ForgotPassword))[0].Name = "forgotpw"
         e.Match([]string{"GET", "POST"}, Path("/auth/resetpw/*"), RateLimit(h.ResetPassword))[0].Name = "resetpw"
-        
+
         // change address
         e.Match([]string{"GET", "POST"}, Path("/auth/newverify/*"), h.SetupMail)[0].Name = "verify"
-        
+
         // Login Required
         e.GET(Path("/"), LoginRequired(h.Index)).Name = "index"
         e.Match([]string{"GET", "POST"}, Path("/changepw"), LoginRequired(h.ChangePassword))[0].Name = "changepw"
