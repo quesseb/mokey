@@ -67,7 +67,7 @@ func (h *Handler) CreateAccount(c echo.Context) error {
         last := removeAccents(strings.ToUpper(strings.TrimSpace(c.FormValue("last"))))
         pass := c.FormValue("password")
         pass2 := c.FormValue("password2")
-        celarstatut := c.FormValue("celarstatut")
+        LDAP_CUSTOM_FIELD := c.FormValue("LDAP_CUSTOM_FIELD")
         captchaID := c.FormValue("captcha_id")
         captchaSol := c.FormValue("captcha_sol")
 
@@ -75,7 +75,7 @@ func (h *Handler) CreateAccount(c echo.Context) error {
                 vars["captchaID"] = captcha.New()
         }
 
-        err := h.createAccount(uid, email, email2, first, last, pass, pass2, celarstatut, captchaID, captchaSol)
+        err := h.createAccount(uid, email, email2, first, last, pass, pass2, LDAP_CUSTOM_FIELD, captchaID, captchaSol)
         if err != nil {
                 vars["message"] = err.Error()
         } else {
@@ -140,7 +140,7 @@ func (h *Handler) Signup(c echo.Context) error {
 }
 
 // createAccount does the work of validation and creating the account in FreeIPA
-func (h *Handler) createAccount(uid, email, email2, first, last, pass, pass2, celarstatut, captchaID, captchaSol string) error {
+func (h *Handler) createAccount(uid, email, email2, first, last, pass, pass2, LDAP_CUSTOM_FIELD, captchaID, captchaSol string) error {
         //if !valid.IsEmail(email) {
         //      return errors.New("Please provide a valid email address")
         //}
